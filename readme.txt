@@ -1,9 +1,9 @@
 === tcS3 ===
 Contributors: tcmccarthy1
-Tags: Amazon, S3, upload, media
+Tags: Amazon, S3, upload, media, multisite
 Requires at least: 3.5
 Tested up to: 4.0
-Stable tag: 1.0
+Stable tag: 1.1
 License: GPL, version 2
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
@@ -17,8 +17,6 @@ This plugin is being released in beta -- the wide popularity of S3 makes it diff
 Current capabilities
 
 
-
-	
  Upload directly to S3 (with the option to delete from your local instance immediately after a successful upload)
 	
  Push all prexisting images on a single wordpress site to S3
@@ -59,3 +57,12 @@ While S3 is relatively inexpensive (very inexpensive the more you use it), it\'s
 
 == Installation ==
 This plugin is installed just like any other. Simply upload the zip file you can download from GitHub and upload it using the WordPress dashboard or FTP. You can also install it right from the Wordpress Plugin Repository!
+
+== Changelog ==
+ 
+= 1.1 = 
+* Bug fix where some environments don't show menu options for plugin when plugin installed from the Wordpress repository
+* Bug fix where some environments choke on upload of non-images
+
+= 1.0 =
+* Initial Release
