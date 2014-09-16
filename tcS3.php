@@ -3,7 +3,7 @@
  * Plugin Name: TCS3 -- Send uploads directly to S3
  * Plugin URI: http://www.tc-mccarthy.com
  * Description: Allows site admins to push uploads to S3
- * Version: 1.0
+ * Version: 1.1
  * Author: TC McCarthy
  * Author URI: http://www.tc-mccarthy.com
  * License: GPL2
@@ -517,6 +517,10 @@ class tcS3 {
 	public function tcS3_ajax_push_single(){
 		$post_id = $_POST["postID"];
 		$file_data = wp_get_attachment_metadata($post_id);
+		if(count($file_data) > 0){
+			$file_data["file"] = get_attached_file($post_id);
+		}
+		
 		$keys = $this->build_attachment_keys($file_data);
 
 		if($this->push_to_S3($keys)){
