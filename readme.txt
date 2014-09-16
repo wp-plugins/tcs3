@@ -1,6 +1,6 @@
 === tcS3 ===
 Contributors: tcmccarthy1
-Tags: Amazon, S3, upload, media
+Tags: Amazon, S3, upload, media, multisite
 Requires at least: 3.5
 Tested up to: 4.0
 Stable tag: 1.0
