@@ -1,11 +1,11 @@
 <?php
 /**
  * Plugin Name: TCS3 -- Send uploads directly to S3
- * Plugin URI: http://www.tc-mccarthy.com
+ * Plugin URI: http://tcm.io
  * Description: Allows site admins to push uploads to S3
- * Version: 1.1
+ * Version: 1.5
  * Author: TC McCarthy
- * Author URI: http://www.tc-mccarthy.com
+ * Author URI: http://tcm.io
  * License: GPL2
  */
 require(dirname(__FILE__) . "/aws/aws-autoloader.php");
@@ -37,10 +37,16 @@ class tcS3 {
 			$this->save_s3_settings();
 		}
 
+
 		//setup options
 		$this->networkActivated = $this->network_activation_check();
 		$this->options = ($this->networkActivated) ? get_site_option("tcS3_options") : get_option("tcS3_options");
-		$use_S3 = ($this->options["access_key"] != "" && $this->options["access_secret"] != "" && $this->options["bucket"] != "" && $this->options["bucket_path"] != "" && $this->options["bucket_region"] != "") ? true : false;
+
+		$this->accessKey = ($this->options["env_toggle"] == 1) ? getenv($this->options["access_key_variable"]) : $this->options["access_key"];
+		$this->accessSecret = ($this->options["env_toggle"] == 1) ? getenv($this->options["access_secret_variable"]) : $this->options["access_secret"];
+		
+
+		$use_S3 = ($this->accessKey != "" && $this->accessSecret != "" && $this->options["bucket"] != "" && $this->options["bucket_path"] != "" && $this->options["bucket_region"] != "") ? true : false;
 
 		//setup admin menu
 		if ($this->networkActivated) {
@@ -55,13 +61,13 @@ class tcS3 {
 		if ($use_S3) {
 			//send new uploads to S3
 			add_action('add_attachment', array($this, 'create_on_S3')); //for non-images
-			add_filter('wp_generate_attachment_metadata', array($this, 'create_image_on_S3')); //for images
+			add_filter('wp_generate_attachment_metadata', array($this, 'create_image_on_S3'), 20, 5); //for images
 
 			//send delete requests to S3
 			add_action("delete_attachment", array($this, "delete_from_library"));
 
 			//send crop/rotate/file changes to S3
-			add_filter('wp_update_attachment_metadata', array($this, 'update_on_s3'), 10, 5);
+			add_filter('wp_update_attachment_metadata', array($this, 'update_on_s3'), 20, 5);
 
 			//add new column to media library
 			add_filter('manage_media_columns', array($this, 'create_s3_media_column'));
@@ -93,13 +99,35 @@ class tcS3 {
 			add_action("wp_ajax_push_single", array($this, "tcS3_ajax_push_single"));
 			add_action("wp_ajax_get_attachment_ids", array($this, "tcS3_ajax_get_attachment_ids"));
 			add_action("wp_ajax_mark_all_synced", array($this, "tcS3_ajax_mark_all_synced"));
+		} else{
+			add_action('admin_head', array($this, "tcS3_dashAlert"));
 		}
+	}
+
+	public function tcS3_dashAlert(){
+		echo "<style type=\"text/css\">
+		.alert {
+			padding:1em;
+			background-color:#ebfbff;
+			border-bottom:1px solid #CCC;
+			display:none;
+			text-align: center;
+			font-size: 1.5em;
+		}
+		</style>
+		<script type=\"text/javascript\">
+		\$j = jQuery;
+		\$j().ready(function(){ //when page has fully loaded
+		  \$j('h2').parent().prev().after('<div id=\"my-plugin-alert\" class=\"alert\">Oops! It looks like you\'ve activated tcS3 but it\'s not properly configured to upload to your bucket. <a href=\"" . admin_url("options-general.php?page=tcS3-admin") . "\">Please check your settings!</a></div>');
+		  setTimeout(\"\$j('#my-plugin-alert').fadeIn('slow');clearTimeout();\",1000);
+		});
+		</script>";
 	}
 
 	public function build_aws_config() {
 		return array(
-			'key' => $this->options["access_key"],
-			'secret' => $this->options["access_secret"],
+			'key' => $this->accessKey,
+			'secret' => $this->accessSecret,
 			'region' => $this->options["bucket_region"]
 			);
 	}
@@ -116,10 +144,14 @@ class tcS3 {
 			"delete_after_push" => 1,
 			"s3_url" => "",
 			"local_url" => "http://{$_SERVER["HTTP_HOST"]}/wp-content/",
+			"tcS3_fallback" => 1,
 			"s3_cache_time" => 172800,
 			"s3_permalink_reset" => 0,
 			"s3_redirect_cache_time" => 86400,
-			"s3_redirect_cache_memcached" => ""
+			"s3_redirect_cache_memcached" => "",
+			"access_key_variable" => "",
+			"access_secret_variable" => "",
+			"env_toggle" => 0
 			);
 
 		if ($this->networkActivated) {
@@ -509,8 +541,13 @@ class tcS3 {
 	public function build_attachment_url($url) {
 		preg_match("/\/([0-9]+\/[0-9]+\/[^\/]+)$/", $url, $matches);
 		$protocol = (isset($_SERVER["HTTPS"]) && $_SERVER["HTTPS"] != "") ? "https" : "http";
-		$url = $protocol . "://" . $_SERVER["HTTP_HOST"] . "/tcS3_media" . $this->uploadDir . '/' . $matches[1];
-		return $url;
+		if($this->options["tcS3_fallback"] == 1){
+			$url = get_site_url() . "/tcS3_media" . $this->uploadDir . '/' . $matches[1];
+		} else{
+			$url = $this->options["s3_url"] . $this->uploadDir . "/" . $matches[1];
+		}
+		
+		return preg_replace("/([^:])\/\//", "$1/", $url);
 	}
 
 	/**** AJAX REQUESTS ******/
@@ -613,6 +650,18 @@ class tcS3 {
 			);
 
 		add_settings_field(
+			'access_key_variable', 'AWS Access Key environment variable', array($this, 'aws_key_variable_callback'), 'tcS3-setting-admin', 'tcS3-settings'
+			);
+
+		add_settings_field(
+			'access_secret_variable', 'AWS Access Key Secret environment variable', array($this, 'aws_secret_variable_callback'), 'tcS3-setting-admin', 'tcS3-settings'
+			);
+
+		add_settings_field(
+			'env_toggle', 'Use environment variables', array($this, 'env_variable_callback'), 'tcS3-setting-admin', 'tcS3-settings'
+			);
+
+		add_settings_field(
 			's3_bucket', 'S3 Bucket', array($this, 's3_bucket_callback'), 'tcS3-setting-admin', 'tcS3-settings'
 			);
 
@@ -626,6 +675,10 @@ class tcS3 {
 
 		add_settings_field(
 			'local_url', 'S3 URL', array($this, 's3_url_callback'), 'tcS3-setting-admin', 'tcS3-settings'
+			);
+
+		add_settings_field(
+			'tcS3_fallback', 'Use fallback', array($this, 'tcS3_fallback_callback'), 'tcS3-setting-admin', 'tcS3-settings'
 			);
 
 		add_settings_field(
@@ -734,6 +787,24 @@ class tcS3 {
 			);
 	}
 
+	public function aws_key_variable_callback() {
+		$optionKey = 'access_key_variable';
+		$helperText = 'For security reasons, you may prefer to store your AWS key and secret in an environment variable instead of your DB. If that is your preference enter the name of the env variable for your key';
+
+		printf(
+			'<input type="hidden" name="tcS3_option_submit" value="1" /><input type="text" id="%s" name="tcS3_option[%s]" value="%s" /><div><small>%s</small></div>', $optionKey, $optionKey, isset($this->options[$optionKey]) ? esc_attr($this->options[$optionKey]) : '', $helperText
+			);
+	}
+
+	public function aws_secret_variable_callback() {
+		$optionKey = 'access_secret_variable';
+		$helperText = 'For security reasons, you may prefer to store your AWS key and secret in an environment variable instead of your DB. If that is your preference enter the name of the env variable for your secret';
+
+		printf(
+			'<input type="text" id="%s" name="tcS3_option[%s]" value="%s" /><div><small>%s</small></div>', $optionKey, $optionKey, isset($this->options[$optionKey]) ? esc_attr($this->options[$optionKey]) : '', $helperText
+			);
+	}
+
 	public function s3_bucket_callback() {
 		$optionKey = 'bucket';
 		$helperText = 'The name of your S3 bucket';
@@ -817,6 +888,28 @@ class tcS3 {
 	public function s3_delete_local_callback() {
 		$optionKey = 's3_delete_local';
 		$helperText = 'Should uploaded files be removed from your local server?';
+
+		printf(
+			'<input type="radio" id="%s" name="tcS3_option[%s]" value="1" %s /> Yes 
+			<br /><input type="radio" id="%s" name="tcS3_option[%s]" value="0" %s /> No 
+			<div><small>%s</small></div>', $optionKey, $optionKey, ($this->options[$optionKey] == 1) ? "checked" : "", $optionKey, $optionKey, ($this->options[$optionKey] == 0) ? "checked" : "", $helperText
+			);
+	}
+
+	public function env_variable_callback() {
+		$optionKey = 'env_toggle';
+		$helperText = 'For security reasons, you may prefer to store your AWS key and secret in an environment variable instead of your DB. If that is your preference toggle this to \'yes\', otherwise the key and secret entered will be used';
+
+		printf(
+			'<input type="radio" id="%s" name="tcS3_option[%s]" value="1" %s /> Yes 
+			<br /><input type="radio" id="%s" name="tcS3_option[%s]" value="0" %s /> No 
+			<div><small>%s</small></div>', $optionKey, $optionKey, ($this->options[$optionKey] == 1) ? "checked" : "", $optionKey, $optionKey, ($this->options[$optionKey] == 0) ? "checked" : "", $helperText
+			);
+	}
+
+	public function tcS3_fallback_callback() {
+		$optionKey = 'tcS3_fallback';
+		$helperText = 'If selected tcS3 will use a tcS3_media URL to allow the plugin to check for files locally if they\'re not available on S3. This option slows down load time';
 
 		printf(
 			'<input type="radio" id="%s" name="tcS3_option[%s]" value="1" %s /> Yes 
