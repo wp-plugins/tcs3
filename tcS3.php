@@ -3,7 +3,7 @@
  * Plugin Name: TCS3 -- Send uploads directly to S3
  * Plugin URI: http://tcm.io
  * Description: Allows site admins to push uploads to S3
- * Version: 1.5
+ * Version: 1.6
  * Author: TC McCarthy
  * Author URI: http://tcm.io
  * License: GPL2
