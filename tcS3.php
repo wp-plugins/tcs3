@@ -88,7 +88,7 @@ class tcS3 {
 			//add the rewrite rule for the CDN lookup script and update the frontend to redirect to it
 			add_action('init', array($this, 'add_images_rewrite'), 10, 0);
 			add_action('template_redirect', array($this, 'load_image'));
-			add_filter('wp_get_attachment_url', array($this, 'build_attachment_url'));
+			add_filter('wp_get_attachment_url', array($this, 'build_attachment_url'), 20, 1);
 
 			//if super admin has flagged marking all uploads as uploaded and it has been done on this site yet, do it.
 			if (get_site_option("tcS3_mark_all_attachments") == 1 && (get_option("tcS3_marked_all_attached") != 1 || get_option("tcS3_marked_all_attached") === FALSE)) {

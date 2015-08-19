@@ -2,8 +2,8 @@
 Contributors: tcmccarthy1
 Tags: Amazon, S3, upload, media, multisite, aws
 Requires at least: 3.5
-Tested up to: 4.2.2
-Stable tag: 1.5
+Tested up to: 4.3
+Stable tag: 1.6
 License: GPL, version 2
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
